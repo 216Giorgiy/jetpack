@@ -9,10 +9,15 @@ class WordAds_Params {
 	 */
 	public function __construct() {
 		$this->options = array(
-			'wordads_approved' => (bool) get_option( 'wordads_approved', false ),
-			'wordads_active'   => (bool) get_option( 'wordads_active',   false ),
-			'wordads_house'    => (bool) get_option( 'wordads_house',    true ),
-			'enable_header_ad' => (bool) get_option( 'enable_header_ad', false )
+			'wordads_approved'           => (bool) get_option( 'wordads_approved', false ),
+			'wordads_active'             => (bool) get_option( 'wordads_active',   false ),
+			'wordads_house'              => (bool) get_option( 'wordads_house',    true ),
+			'enable_header_ad'           => (bool) get_option( 'enable_header_ad', false ),
+			'wordads_second_belowpost'   => (bool) get_option( 'wordads_second_belowpost', false ),
+			'wordads_display_front_page' => (bool) get_option( 'wordads_display_front_page', true ),
+			'wordads_display_post'       => (bool) get_option( 'wordads_display_post', true ),
+			'wordads_display_page'       => (bool) get_option( 'wordads_display_page', true ),
+			'wordads_display_archive'    => (bool) get_option( 'wordads_display_archive', true ),
 		);
 
 		$host = 'localhost';
@@ -146,8 +151,24 @@ class WordAds_Params {
 	 *
 	 * @since 4.5.0
 	 */
-	public static function should_show() {
+	public function should_show() {
 		global $wp_query;
+		if ( ( is_front_page() || is_home() ) && ! $this->options['wordads_display_front_page'] ) {
+			return false;
+		}
+
+		if ( is_single() && ! $this->options['wordads_display_post'] ) {
+			return false;
+		}
+
+		if ( is_page() && ! $this->options['wordads_display_page'] ) {
+			return false;
+		}
+
+		if ( is_archive() && ! $this->options['wordads_display_archive'] ) {
+			return false;
+		}
+
 		if ( is_single() || ( is_page() && ! is_home() ) ) {
 			return true;
 		}
