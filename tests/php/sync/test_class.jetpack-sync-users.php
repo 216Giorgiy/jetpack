@@ -86,7 +86,12 @@ class WP_Test_Jetpack_Sync_Users extends WP_Test_Jetpack_Sync_Base {
 		wp_delete_user( $this->user_id );
 
 		$this->sender->do_sync();
-		$this->sender->do_sync();
+
+		$event = $this->server_event_storage->get_most_recent_event( 'jetpack_deleted_user' );
+		$this->asserNotNull( $event );
+
+		$event = $this->server_event_storage->get_most_recent_event( 'jetpack_deleted_user_from_network' );
+		$this->asserNotNull( $event );
 
 		$this->assertNull( $this->server_replica_storage->get_user( $this->user_id ) );
 	}
@@ -480,6 +485,101 @@ class WP_Test_Jetpack_Sync_Users extends WP_Test_Jetpack_Sync_Base {
 
 		$server_user_local = $this->server_replica_storage->get_user_locale( $this->user_id );
 		$this->assertEquals( '', $server_user_local );
+	}
+
+	public function test_delete_user_from_network() {
+		if ( ! is_multisite() ) {
+			$this->markTestSkipped( 'Run it in multi site mode' );
+		}
+
+		$this->server_event_storage->reset();
+
+		wpmu_delete_user( $this->user_id );
+
+		$this->sender->do_sync();
+
+		$event = $this->server_event_storage->get_most_recent_event( 'jetpack_deleted_user_from_network' );
+		$this->assertNotEmpty( $event );
+
+		$event = $this->server_event_storage->get_most_recent_event( 'jetpack_removed_user_from_blog' );
+		$this->assertNotEmpty( $event );
+
+		$event = $this->server_event_storage->get_most_recent_event( 'jetpack_deleted_user' );
+		$this->assertFalse( $event );
+
+		$this->assertNull( $this->server_replica_storage->get_user( $this->user_id ) );
+	}
+
+	public function test_remove_user_from_blog_without_reassign() {
+		if ( ! is_multisite() ) {
+			$this->markTestSkipped( 'Run it in multi site mode' );
+		}
+
+		// NOTE this is necessary because WPMU causes certain assumptions about transients
+		// to be wrong, and tests to explode. @see: https://github.com/sheabunge/WordPress/commit/ff4f1bb17095c6af8a0f35ac304f79074f3c3ff6
+		global $wpdb;
+
+		$suppress = $wpdb->suppress_errors();
+		$other_blog_id = wpmu_create_blog( 'foo.com', '', "My Blog", $this->user_id );
+		$wpdb->suppress_errors( $suppress );
+
+		add_user_to_blog( $this->user_id, $other_blog_id, 'administrator' );
+
+		$this->server_event_storage->reset();
+
+		remove_user_from_blog( $this->user_id, $other_blog_id );
+
+		$this->sender->do_sync();
+
+		$event = $this->server_event_storage->get_most_recent_event( 'jetpack_deleted_user' );
+		$this->assertFalse( $event );
+
+		$event = $this->server_event_storage->get_most_recent_event( 'jetpack_deleted_user_from_network' );
+		$this->assertFalse( $event );
+
+		$event = $this->server_event_storage->get_most_recent_event( 'jetpack_removed_user_from_blog' );
+		$this->assertNotEmpty( $event );
+		$this->assertEquals( $this->user_id, $event->args['0']['user_id'] );
+		$this->assertEquals( $other_blog_id, $event->args['0']['blog_id'] );
+		$this->assertFalse( $event->args['0']['reassigned_user'] );
+	}
+
+	public function test_remove_user_from_blog_with_reassign() {
+		if ( ! is_multisite() ) {
+			$this->markTestSkipped( 'Run it in multi site mode' );
+		}
+
+		// NOTE this is necessary because WPMU causes certain assumptions about transients
+		// to be wrong, and tests to explode. @see: https://github.com/sheabunge/WordPress/commit/ff4f1bb17095c6af8a0f35ac304f79074f3c3ff6
+		global $wpdb;
+
+		$suppress = $wpdb->suppress_errors();
+		$other_blog_id = wpmu_create_blog( 'foo.com', '', "My Blog", $this->user_id );
+		$wpdb->suppress_errors( $suppress );
+
+		$other_blog_user_id = $this->factory->user->create();
+		add_user_to_blog( $other_blog_id, $other_blog_user_id, 'administrator' );
+
+		$other_blog_user_id_reassign = $this->factory->user->create();
+		add_user_to_blog( $other_blog_id, $other_blog_user_id_reassign, 'administrator' );
+
+		$this->server_event_storage->reset();
+
+		remove_user_from_blog( $other_blog_user_id, $other_blog_id, $other_blog_user_id_reassign);
+
+		$this->sender->do_sync();
+
+		$event = $this->server_event_storage->get_most_recent_event( 'jetpack_deleted_user' );
+		$this->assertFalse( $event );
+
+		$event = $this->server_event_storage->get_most_recent_event( 'jetpack_deleted_user_from_network' );
+		$this->assertFalse( $event );
+
+		$event = $this->server_event_storage->get_most_recent_event( 'jetpack_removed_user_from_blog' );
+		$this->assertNotEmpty( $event );
+		$this->assertEquals( $other_blog_user_id, $event->args['0']['user_id'] );
+		$this->assertEquals( $other_blog_id, $event->args['0']['blog_id'] );
+		$this->assertEquals( $other_blog_user_id_reassign, $event->args['0']['reassigned_user'] );
 	}
 
 	protected function assertUsersEqual( $user1, $user2 ) {

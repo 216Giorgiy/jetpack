@@ -3,8 +3,6 @@
 class Jetpack_Sync_Module_Users extends Jetpack_Sync_Module {
 	const MAX_INITIAL_SYNC_USERS = 100;
 
-	private $triggered_network_user_delete_from_remove_from_blog = false;
-
 	function name() {
 		return 'users';
 	}
@@ -36,12 +34,10 @@ class Jetpack_Sync_Module_Users extends Jetpack_Sync_Module {
 		add_action( 'jetpack_sync_user_locale_delete', $callable, 10, 1 );
 
 		add_action( 'deleted_user', array( $this, 'deleted_user_handler' ), 10, 2 );
-		add_action( 'jetpack_deleted_user', $callable );
-		add_action( 'jetpack_deleted_user_reassigned', $callable, 10, 2 );
+		add_action( 'jetpack_deleted_user', $callable, 10, 2 );
 		add_action( 'jetpack_deleted_user_from_network', $callable );
-		add_action( 'jetpack_deleted_user_from_network_reassigned', $callable, 10, 2 );
 		add_action( 'remove_user_from_blog', array( $this, 'remove_user_from_blog_handler' ), 10, 2 );
-		add_action( 'jetpack_removed_user_from_blog', $callable, 10, 2 );
+		add_action( 'jetpack_removed_user_from_blog', $callable, 10, 2, 3 );
 
 		// user roles
 		add_action( 'add_user_role', array( $this, 'save_user_role_handler' ), 10, 2 );
@@ -138,20 +134,12 @@ class Jetpack_Sync_Module_Users extends Jetpack_Sync_Module {
 	}
 
 	public function deleted_user_handler( $deleted_user_id, $reassigned_user_id = '' ) {
-		if ( $this->is_delete_user_from_network() ) {
-			if ( ! $this->triggered_network_user_delete_from_remove_from_blog ) {
+		if ( is_multisite() ) {
 				do_action( 'jetpack_deleted_user_from_network', $deleted_user_id );
-				$this->triggered_network_user_delete_from_remove_from_blog = false;
-			}
 			return;
 		}
 
-		if ( ! $reassigned_user_id ) {
-			do_action( 'jetpack_deleted_user', $deleted_user_id );
-			return;
-		}
-
-		do_action( 'jetpack_deleted_user_reassigned', $deleted_user_id, $reassigned_user_id );
+		do_action( 'jetpack_deleted_user', $deleted_user_id, $reassigned_user_id );
 	}
 
 	public function user_edited_handler( $user_id ) {
@@ -340,20 +328,9 @@ class Jetpack_Sync_Module_Users extends Jetpack_Sync_Module {
 			return;
 		}
 
-		if ( ! $this->is_delete_user_from_network() ) {
-			do_action( 'jetpack_removed_user_from_blog', $user_id, $blog_id );
-			return;
-		}
-
-		$this->triggered_network_user_delete_from_remove_from_blog = true;
-
 		$reassigned_user_id = $this->get_reassigned_network_user_id();
-		if ( ! $reassigned_user_id ) {
-			do_action( 'jetpack_deleted_user_from_network', $user_id );
-			return;
-		}
 
-		do_action( 'jetpack_deleted_user_from_network_reassigned', $user_id, $reassigned_user_id );
+		do_action( 'jetpack_remove_user_from_blog', $user_id, $blog_id, $reassigned_user_id );
 	}
 
 	private function is_add_new_user_to_blog() {
@@ -364,35 +341,35 @@ class Jetpack_Sync_Module_Users extends Jetpack_Sync_Module {
 		return $this->is_function_in_backtrace( 'wp_create_user' );
 	}
 
-	private function is_delete_user_from_network() {
-		return $this->is_function_in_backtrace( 'remove_user_from_blog', '/wp-admin/network/users.php' ) ||
-		       $this->is_function_in_backtrace( 'wpmu_delete_user', '/wp-admin/network/users.php' );
-	}
-
 	private function get_reassigned_network_user_id() {
 		$backtrace = debug_backtrace( false );
 		foreach ( $backtrace as $call ) {
 			if (
-				false !== strpos( $call['file'], '/wp-admin/network/users.php' ) &&
+				isset( $call['file'] ) &&
 				'remove_user_from_blog' === $call['function'] &&
 				3 === count( $call['args'] )
 			) {
 				return $call['args'][2];
 			}
 		}
+
 		return false;
 	}
 
 	private function is_function_in_backtrace( $name, $file = '' ) {
 		$backtrace = debug_backtrace( false );
 		foreach ( $backtrace as $call ) {
-			if ( $file && false === strpos( $call['file'], $file ) ) {
+			if (
+				isset( $call['file'] ) &&
+				$file && false === strpos( $call['file'], $file )
+			) {
 				continue;
 			}
 			if ( $name === $call['function'] ) {
 				return true;
 			}
 		}
+
 		return false;
 	}
 }
