@@ -330,7 +330,7 @@ class Jetpack_Sync_Module_Users extends Jetpack_Sync_Module {
 
 		$reassigned_user_id = $this->get_reassigned_network_user_id();
 
-		do_action( 'jetpack_remove_user_from_blog', $user_id, $blog_id, $reassigned_user_id );
+		do_action( 'jetpack_removed_user_from_blog', $user_id, $blog_id, $reassigned_user_id );
 	}
 
 	private function is_add_new_user_to_blog() {
