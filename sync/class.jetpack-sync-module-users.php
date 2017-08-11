@@ -34,8 +34,7 @@ class Jetpack_Sync_Module_Users extends Jetpack_Sync_Module {
 		add_action( 'jetpack_sync_user_locale_delete', $callable, 10, 1 );
 
 		add_action( 'deleted_user', array( $this, 'deleted_user_handler' ), 10, 2 );
-		add_action( 'jetpack_deleted_user', $callable, 10, 2 );
-		add_action( 'jetpack_deleted_user_from_network', $callable );
+		add_action( 'jetpack_deleted_user', $callable, 10, 3 );
 		add_action( 'remove_user_from_blog', array( $this, 'remove_user_from_blog_handler' ), 10, 2 );
 		add_action( 'jetpack_removed_user_from_blog', $callable, 10, 2, 3 );
 
@@ -134,12 +133,7 @@ class Jetpack_Sync_Module_Users extends Jetpack_Sync_Module {
 	}
 
 	public function deleted_user_handler( $deleted_user_id, $reassigned_user_id = '' ) {
-		if ( is_multisite() ) {
-				do_action( 'jetpack_deleted_user_from_network', $deleted_user_id );
-			return;
-		}
-
-		do_action( 'jetpack_deleted_user', $deleted_user_id, $reassigned_user_id );
+		do_action( 'jetpack_deleted_user', $deleted_user_id, $reassigned_user_id, is_multisite() );
 	}
 
 	public function user_edited_handler( $user_id ) {
