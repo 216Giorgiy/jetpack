@@ -339,7 +339,6 @@ class Jetpack_Sync_Module_Users extends Jetpack_Sync_Module {
 		$backtrace = debug_backtrace( false );
 		foreach ( $backtrace as $call ) {
 			if (
-				isset( $call['file'] ) &&
 				'remove_user_from_blog' === $call['function'] &&
 				3 === count( $call['args'] )
 			) {
