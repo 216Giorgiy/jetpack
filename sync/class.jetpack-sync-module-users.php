@@ -324,7 +324,22 @@ class Jetpack_Sync_Module_Users extends Jetpack_Sync_Module {
 
 		$reassigned_user_id = $this->get_reassigned_network_user_id();
 
+		$invoking_blog_id = get_current_blog_id();
+
+		//Handle case where current blog is the blog user was removed from
+		if ( (int) $blog_id === (int) $invoking_blog_id ) {
+			do_action( 'jetpack_removed_user_from_blog', $user_id, $blog_id, $reassigned_user_id );
+			return;
+		}
+
+		//Handle case where user removed from other blog
+		switch_to_blog( $blog_id );
+		if ( ! Jetpack::is_active() ) {
+			switch_to_blog( $invoking_blog_id );
+			return;
+		}
 		do_action( 'jetpack_removed_user_from_blog', $user_id, $blog_id, $reassigned_user_id );
+		switch_to_blog( $invoking_blog_id );
 	}
 
 	private function is_add_new_user_to_blog() {
